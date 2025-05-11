@@ -1,0 +1,100 @@
+
+SAFE WP-CLI BLOAT & MAINTENANCE PLAYBOOK v2.0
+Website: https://serafintech.io
+Author: S. Serafin
+Version: 2.0
+
+
+---------------------------------------------
+ Check Table Bloat by Data Free
+---------------------------------------------
+
+wp db query "
+SELECT 
+  table_name AS Table_Name,
+  ROUND(data_length / 1024 / 1024, 2) AS Data_MB,
+  ROUND(index_length / 1024 / 1024, 2) AS Index_MB,
+  ROUND(data_free / 1024 / 1024, 2) AS Data_Free_MB,
+  ROUND((data_free / (data_length + index_length)) * 100, 2) AS Bloat_Percentage
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND data_free > 0
+ORDER BY data_free DESC
+LIMIT 15;"
+
+
+---------------------------------------------
+ Find Largest Log Tables
+---------------------------------------------
+
+wp db query "
+SELECT 
+  table_name, 
+  ROUND(data_length / 1024 / 1024, 2) AS data_mb,
+  ROUND(index_length / 1024 / 1024, 2) AS index_mb,
+  ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_mb
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND table_name LIKE '%log%'
+ORDER BY total_mb DESC;"
+
+
+---------------------------------------------
+Orphaned Post Meta
+---------------------------------------------
+wp db query "DELETE pm FROM wp_postmeta pm LEFT JOIN wp_posts wp ON wp.ID = pm.post_id WHERE wp.ID IS NULL"
+
+
+---------------------------------------------
+Orphaned Comment Meta
+---------------------------------------------
+wp db query "DELETE cm FROM wp_commentmeta cm LEFT JOIN wp_comments c ON c.comment_ID = cm.comment_id WHERE c.comment_ID IS NULL"
+
+
+---------------------------------------------
+Orphaned User Meta
+---------------------------------------------
+wp db query "DELETE um FROM wp_usermeta um LEFT JOIN wp_users u ON u.ID = um.user_id WHERE u.ID IS NULL"
+
+
+---------------------------------------------
+Delete All Expired WooCommerce Sessions
+---------------------------------------------
+wp wc session cleanup
+
+---------------------------------------------
+Delete Completed Action Scheduler Logs
+---------------------------------------------
+wp action-scheduler delete --status=complete
+
+
+---------------------------------------------
+Delete WooCommerce Guest Sessions
+---------------------------------------------
+wp options delete_all _wc_session_
+
+
+---------------------------------------------
+Remove WooCommerce Logs Older Than 30 Days
+---------------------------------------------
+wp db query "
+DELETE FROM wp_actionscheduler_logs
+WHERE log_date_gmt < NOW() - INTERVAL 30 DAY;"
+
+
+---------------------------------------------
+Delete All Spam Comments
+---------------------------------------------
+wp comment delete $(wp comment list --status=spam --format=ids) --force
+
+
+---------------------------------------------
+Optimize Tables
+---------------------------------------------
+wp db optimize
+
+
+---------------------------------------------
+Flush Object Cache
+---------------------------------------------
+wp cache flush
